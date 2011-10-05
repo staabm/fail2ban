@@ -47,7 +47,7 @@ logSys = logging.getLogger("fail2ban")
 # Add the default logging handler
 stdout = logging.StreamHandler(sys.stdout)
 logSys.addHandler(stdout)
-logSys.setLevel(logging.FATAL)
+logSys.setLevel(logging.DEBUG)
 
 print "Fail2ban " + version + " test suite. Please wait..."
 

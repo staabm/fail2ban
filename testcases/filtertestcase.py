@@ -100,7 +100,7 @@ class GetFailures(unittest.TestCase):
 		
 		self.__filter.addLogPath(GetFailures.FILENAME_01)
 		self.__filter.addFailRegex("(?:(?:Authentication failure|Failed [-/\w+]+) for(?: [iI](?:llegal|nvalid) user)?|[Ii](?:llegal|nvalid) user|ROOT LOGIN REFUSED) .*(?: from|FROM) <HOST>")
-
+		import pydb; pydb.debugger;
 		self.__filter.getFailures(GetFailures.FILENAME_01)
 		
 		ticket = self.__filter.failManager.toBan()
@@ -108,6 +108,9 @@ class GetFailures(unittest.TestCase):
 		attempts = ticket.getAttempt()
 		date = ticket.getTime()
 		ip = ticket.getIP()
+		matches = ticket.getMatches()
+		import pydb; pydb.debugger()
+		print matches
 		found = (ip, attempts, date)
 		
 		self.assertEqual(found, output)
