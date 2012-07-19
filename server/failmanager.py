@@ -43,6 +43,11 @@ class FailManager:
 		self.__maxRetry = 3
 		self.__maxTime = 600
 		self.__failTotal = 0
+		self.__mostIP = 0;
+		self.__mostRetry = 0; 
+		self.__mostTime = 0; 
+		self.__sumRetry = 0;
+		self.__samplesRetry = 0; 
 	
 	def setFailTotal(self, value):
 		try:
@@ -94,11 +99,42 @@ class FailManager:
 			matches = ticket.getMatches()
 			if self.__failList.has_key(ip):
 				fData = self.__failList[ip]
+				# AD START
+				if logSys.isEnabledFor(logging.INFO):
+					if self.__samplesRetry > 1000000:
+						self.__sumRetry = 0
+						self.__samplesRetry = 0 
+					self.__sumRetry += fData.getRetry()
+					self.__samplesRetry += 1
+				# AD STOP
 				if fData.getLastReset() < unixTime - self.__maxTime:
 					fData.setLastReset(unixTime)
 					fData.setRetry(0)
 				fData.inc(matches)
 				fData.setLastTime(unixTime)
+				# AD START
+				if logSys.isEnabledFor(logging.INFO):
+					if fData.getRetry() > self.__mostRetry:
+						if self.__mostIP == ip:
+							self.__mostRetry = fData.getRetry()
+						else:
+							if self.__samplesRetry > 0:
+								if self.__mostRetry > (self.__sumRetry/self.__samplesRetry):
+									logSys.info("new mostIP: %s" % self.__mostIP)
+									logSys.info("new mostRetry: %s" % self.__mostRetry)
+									logSys.info("AverageRetry: %s" % (self.__sumRetry/self.__samplesRetry))
+							self.__mostRetry = fData.getRetry()
+							self.__mostIP = ip
+							self.__mostTime = unixTime
+					if self.__mostTime < unixTime - self.__maxTime:
+						logSys.info("mostIP: %s" % self.__mostIP)
+						logSys.info("mostRetry: %s" % self.__mostRetry)
+						if self.__samplesRetry > 0:
+							logSys.info("AverageRetry: %s" % (self.__sumRetry/self.__samplesRetry))
+						self.__mostRetry = 0
+						self.__mostIP = 0
+						self.__mostTime = unixTime
+				# AD STOP
 			else:
 				fData = FailData()
 				fData.inc(matches)
