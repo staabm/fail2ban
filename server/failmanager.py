@@ -27,10 +27,12 @@ __date__ = "$Date$"
 __copyright__ = "Copyright (c) 2004 Cyril Jaquier"
 __license__ = "GPL"
 
+import commands
 from faildata import FailData
 from ticket import FailTicket
 from threading import Lock
 import logging
+
 
 # Gets the instance of the logger.
 logSys = logging.getLogger("fail2ban.filter")
@@ -43,11 +45,12 @@ class FailManager:
 		self.__maxRetry = 3
 		self.__maxTime = 600
 		self.__failTotal = 0
-		self.__mostIP = 0;
-		self.__mostRetry = 0; 
-		self.__mostTime = 0; 
-		self.__sumRetry = 0;
-		self.__samplesRetry = 0; 
+		self.__mostIP = 0 # AD
+		self.__mostRetry = 0 # AD
+		self.__sumRetry = 0 # AD
+		self.__samplesRetry = 0 # AD
+		self.__lastRRDUpdateTime = 0 # AD
+		self.__updateTime = 59 # AD
 	
 	def setFailTotal(self, value):
 		try:
@@ -97,43 +100,44 @@ class FailManager:
 			ip = ticket.getIP()
 			unixTime = ticket.getTime()
 			matches = ticket.getMatches()
+			# AD START
+			if logSys.isEnabledFor(logging.INFO) or logSys.isEnabledFor(logging.DEBUG) :
+				# INIT & CLEAN UP
+				if self.__lastRRDUpdateTime == 0:
+					self.__lastRRDUpdateTime = unixTime
+				if self.__samplesRetry > 1000000:
+					self.__sumRetry = 0
+					self.__samplesRetry = 0 
+				# CHECK LAST UPDATE
+				diffRRDTime = unixTime - self.__lastRRDUpdateTime
+				if diffRRDTime > self.__updateTime:
+					# UPDATE IS LONG TIME AGO - RRDTOOL UPDATE
+					logSys.debug("diffRRDTime: %s" % diffRRDTime)
+					logSys.debug('/usr/bin/rrdtool update /var/www/fail2ban/fail2ban_ad.rrd N:%d' %(self.__mostRetry))
+					commands.getstatusoutput('/usr/bin/rrdtool update /var/www/fail2ban/fail2ban_ad.rrd N:%d' %(self.__mostRetry))
+					# RESET PARAMETER
+					self.__samplesRetry += (diffRRDTime%self.__updateTime)
+					self.__lastRRDUpdateTime = unixTime
+					self.__mostRetry = 0
+				else:
+					self.__samplesRetry += 1
+			# AD STOP
 			if self.__failList.has_key(ip):
 				fData = self.__failList[ip]
-				# AD START
-				if logSys.isEnabledFor(logging.INFO):
-					if self.__samplesRetry > 1000000:
-						self.__sumRetry = 0
-						self.__samplesRetry = 0 
-					self.__sumRetry += fData.getRetry()
-					self.__samplesRetry += 1
-				# AD STOP
 				if fData.getLastReset() < unixTime - self.__maxTime:
 					fData.setLastReset(unixTime)
 					fData.setRetry(0)
 				fData.inc(matches)
 				fData.setLastTime(unixTime)
 				# AD START
-				if logSys.isEnabledFor(logging.INFO):
+				if logSys.isEnabledFor(logging.INFO) or logSys.isEnabledFor(logging.DEBUG) :
+					self.__sumRetry += fData.getRetry()
 					if fData.getRetry() > self.__mostRetry:
 						if self.__mostIP == ip:
 							self.__mostRetry = fData.getRetry()
 						else:
-							if self.__samplesRetry > 0:
-								if self.__mostRetry > (self.__sumRetry/self.__samplesRetry):
-									logSys.info("new mostIP: %s" % self.__mostIP)
-									logSys.info("new mostRetry: %s" % self.__mostRetry)
-									logSys.info("AverageRetry: %s" % (self.__sumRetry/self.__samplesRetry))
 							self.__mostRetry = fData.getRetry()
 							self.__mostIP = ip
-							self.__mostTime = unixTime
-					if self.__mostTime < unixTime - self.__maxTime:
-						logSys.info("mostIP: %s" % self.__mostIP)
-						logSys.info("mostRetry: %s" % self.__mostRetry)
-						if self.__samplesRetry > 0:
-							logSys.info("AverageRetry: %s" % (self.__sumRetry/self.__samplesRetry))
-						self.__mostRetry = 0
-						self.__mostIP = 0
-						self.__mostTime = unixTime
 				# AD STOP
 			else:
 				fData = FailData()
@@ -141,6 +145,10 @@ class FailManager:
 				fData.setLastReset(unixTime)
 				fData.setLastTime(unixTime)
 				self.__failList[ip] = fData
+				# AD START
+				if logSys.isEnabledFor(logging.INFO) or logSys.isEnabledFor(logging.DEBUG) :
+					self.__sumRetry += 1	
+				# AD STOP
 			logSys.debug("Currently have failures from %d IPs: %s"
 						 % (len(self.__failList), self.__failList.keys()))
 			self.__failTotal += 1
