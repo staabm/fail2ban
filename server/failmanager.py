@@ -51,6 +51,7 @@ class FailManager:
 		self.__samplesRetry = 0 # AD
 		self.__lastRRDUpdateTime = 0 # AD
 		self.__updateTime = 59 # AD
+		self.__updateLastTimeStamp = 0 # AD
 	
 	def setFailTotal(self, value):
 		try:
@@ -103,6 +104,8 @@ class FailManager:
 			# AD START
 			if logSys.isEnabledFor(logging.INFO) or logSys.isEnabledFor(logging.DEBUG) :
 				# INIT & CLEAN UP
+				if self.__updateLastTimeStamp == 0:
+					self.__updateLastTimeStamp = unixTime
 				if self.__lastRRDUpdateTime == 0:
 					self.__lastRRDUpdateTime = unixTime
 				if self.__samplesRetry > 1000000:
@@ -118,7 +121,9 @@ class FailManager:
 					# RESET PARAMETER
 					self.__samplesRetry += (diffRRDTime%self.__updateTime)
 					self.__lastRRDUpdateTime = unixTime
-					self.__mostRetry = 0
+					if ( unixTime - self.__updateLastTimeStamp ) > ( self.__updateTime * 2 ):
+						self.__mostRetry = 0
+						self.__updateLastTimeStamp = unixTime
 				else:
 					self.__samplesRetry += 1
 			# AD STOP
